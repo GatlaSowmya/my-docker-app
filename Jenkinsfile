@@ -20,26 +20,20 @@ pipeline {
 
         stage('Stop Previous Containers') {
             steps {
-                script {
-                    sh """
-                        docker stop app1 || true
-                        docker rm app1 || true
-                        docker stop app2 || true
-                        docker rm app2 || true
-                    """
-                }
+                sh """
+                    docker rm -f app1 || true
+                    docker rm -f app2 || true
+                """
             }
         }
 
-        stage('Run New Container') {
+        stage('Run Both Containers') {
             steps {
-                script {
-                    // For first build use app1, else use app2
-                    def containerName = (env.BUILD_NUMBER.toInteger() % 2 == 0) ? "app2" : "app1"
-                    sh "docker run -d --name ${containerName} -p 5000:5000 $IMAGE_NAME"
-                }
+                sh """
+                    docker run -d --name app1 -p 5000:5000 -e APP_VERSION=1 $IMAGE_NAME
+                    docker run -d --name app2 -p 5001:5000 -e APP_VERSION=2 $IMAGE_NAME
+                """
             }
         }
     }
 }
-
