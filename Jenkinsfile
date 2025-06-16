@@ -3,6 +3,7 @@ pipeline {
 
     environment {
         IMAGE_NAME = "my-app:${BUILD_NUMBER}"
+        INSTANCE_COUNT = 5
     }
 
     stages {
@@ -18,30 +19,25 @@ pipeline {
             }
         }
 
-        stage('Stop & Remove Existing Containers') {
+        stage('Run New Containers') {
             steps {
                 script {
-                    for (int i = 1; i <= 5; i++) {
-                        sh """
-                            docker rm -f app${i} || true
-                        """
-                    }
-                }
-            }
-        }
+                    for (int i = 1; i <= INSTANCE_COUNT.toInteger(); i++) {
+                        def containerName = "app${i}-build${BUILD_NUMBER}"
+                        def volumeName = "vol-app${i}"
 
-        stage('Create Volumes and Run Containers') {
-            steps {
-                script {
-                    for (int i = 1; i <= 5; i++) {
+                        // Ensure volume exists
+                        sh "docker volume create ${volumeName}"
+
+                        // Run container using existing volume
+                        def port = 5000 + i
                         sh """
-                            docker volume create vol-app${i}
                             docker run -d \
-                                --name app${i} \
-                                -e APP_VERSION=${i} \
-                                -v vol-app${i}:/data \
-                                -p 500${i}:5000 \
-                                $IMAGE_NAME
+                              --name ${containerName} \
+                              -v ${volumeName}:/data \
+                              -e APP_VERSION="${containerName}" \
+                              -p ${port}:5000 \
+                              $IMAGE_NAME
                         """
                     }
                 }
