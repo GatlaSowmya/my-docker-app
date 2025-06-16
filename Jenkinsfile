@@ -3,7 +3,9 @@ pipeline {
 
     environment {
         IMAGE_NAME = "my-app:${BUILD_NUMBER}"
-        INSTANCE_COUNT = 5
+        CONTAINER_NAME = "app${BUILD_NUMBER}"
+        VOLUME_NAME = "vol-${CONTAINER_NAME}"
+        PORT = "${BUILD_NUMBER + 5000}" // Example: build #1 => port 5001
     }
 
     stages {
@@ -19,28 +21,33 @@ pipeline {
             }
         }
 
-        stage('Run New Containers') {
+        stage('Create Volume (if not exists)') {
+            steps {
+                sh """
+                if [ -z "\$(docker volume ls -q -f name=$VOLUME_NAME)" ]; then
+                  docker volume create $VOLUME_NAME
+                fi
+                """
+            }
+        }
+
+        stage('Run New Container') {
             steps {
                 script {
-                    for (int i = 1; i <= INSTANCE_COUNT.toInteger(); i++) {
-                        def containerName = "app${i}-build${BUILD_NUMBER}"
-                        def volumeName = "vol-app${i}"
-
-                        // Ensure volume exists
-                        sh "docker volume create ${volumeName}"
-
-                        // Run container using existing volume
-                        def port = 5000 + i
-                        sh """
-                            docker run -d \
-                              --name ${containerName} \
-                              -v ${volumeName}:/data \
-                              -e APP_VERSION="${containerName}" \
-                              -p ${port}:5000 \
-                              $IMAGE_NAME
-                        """
-                    }
+                    sh """
+                        docker run -d --name $CONTAINER_NAME \\
+                        -v $VOLUME_NAME:/data \\
+                        -e APP_VERSION=$CONTAINER_NAME \\
+                        -p $PORT:5000 \\
+                        $IMAGE_NAME
+                    """
                 }
+            }
+        }
+
+        stage('Show All Running Containers') {
+            steps {
+                sh 'docker ps --format "table {{.Names}}\t{{.Image}}\t{{.Status}}\t{{.Ports}}"'
             }
         }
     }
